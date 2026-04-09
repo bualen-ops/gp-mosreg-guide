@@ -154,6 +154,46 @@
       margin-top: 12px;
       text-align: center;
     }
+    .selected-meta {
+      margin-top: 6px;
+      font-size: 13px;
+      color: #1d3557;
+    }
+    .toolbar {
+      margin-top: 8px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      border: 1px solid #cdd6ea;
+      background: #fff;
+      color: #1f2937;
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .btn.primary {
+      border-color: #b9cbff;
+      background: #e9f0ff;
+      color: #0a3cb3;
+      font-weight: 600;
+    }
+    .btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+    .card.selected {
+      border-color: #91b2ff;
+      box-shadow: 0 0 0 2px rgba(19, 93, 255, 0.15);
+    }
+    .card-actions {
+      margin-top: 10px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
   </style>
 </head>
 <body>
@@ -167,6 +207,18 @@
       <select id="yearSelect">
         <option value="">Все годы ввода</option>
       </select>
+      <select id="objectTypeSelect">
+        <option value="">Все типы объекта</option>
+      </select>
+      <select id="contractedSelect">
+        <option value="">Законтрактовано: все</option>
+        <option value="yes">Только законтрактованные</option>
+        <option value="no">Только незаконтрактованные</option>
+      </select>
+      <div class="toolbar">
+        <button id="downloadSelectedBtn" type="button" class="btn primary" disabled>Скачать выбранную справку (.doc)</button>
+      </div>
+      <div class="selected-meta" id="selectedMeta">Объект не выбран</div>
       <div class="meta" id="summary">Загрузка данных...</div>
     </div>
     <div id="results"></div>
@@ -211,11 +263,17 @@
       filtered: [],
       regions: [],
       years: [],
+      objectTypes: [],
+      selectedObjectKey: "",
     };
 
     const queryInput = document.getElementById("queryInput");
     const regionSelect = document.getElementById("regionSelect");
     const yearSelect = document.getElementById("yearSelect");
+    const objectTypeSelect = document.getElementById("objectTypeSelect");
+    const contractedSelect = document.getElementById("contractedSelect");
+    const downloadSelectedBtn = document.getElementById("downloadSelectedBtn");
+    const selectedMeta = document.getElementById("selectedMeta");
     const results = document.getElementById("results");
     const summary = document.getElementById("summary");
 
@@ -249,6 +307,73 @@
       }
 
       return `<div class="row"><span class="k">${label}:</span>${escapeHtml(text)}</div>`;
+    }
+
+    function createDocRows(item) {
+      const rows = [
+        ["Наименование объекта", item.objectName],
+        ["ОМСУ", item.region],
+        ["Тип объекта", item.objectType],
+        ["Вид работ", item.workType],
+        ["Вводные", item.intro],
+        ["Срок реализации", item.timeline],
+        ["Год ввода", item.commissioningYear],
+        ["Готовность (%)", item.readinessPercent],
+        ["Перенос срока", item.deadlineShift],
+        ["Комментарий РП", item.managerComment],
+        ["Комментарий (доп. источник)", item.extraComment],
+        ["№ контракта", item.contractNumber],
+        ["Дата заключения контракта", item.contractSignedAt],
+        ["Подрядчик", item.contractor],
+        ["РП (доп. источник)", item.extraManager],
+        ["Наличие ПСД", item.psdAvailability],
+        ["Наличие МОГЭ", item.mogeAvailability],
+        ["План. дата выхода из МОГЭ", item.mogePlannedDate],
+        ["№ МОГЭ", item.mogePositiveNumber],
+        ["Сметная стоимость", item.estimateByMoge],
+        ["в т.ч. ПИР", item.pirPart],
+        ["Лимит 2025-2028", item.limit2025to2028],
+        ["Итого 2026", item.total2026],
+        ["Субсидия", item.subsidy],
+        ["Фед. субсидия", item.federalSubsidy],
+        ["Охват", item.coverage],
+        ["Мощность (куб.м./сут)", item.capacityPerDay],
+        ["Протяженность (м)", item.lengthMeters],
+      ];
+
+      return rows
+        .map(([k, v]) => `<tr><td style="padding:6px 8px;border:1px solid #cfd8e3;background:#f7f9fe;"><b>${escapeHtml(k)}</b></td><td style="padding:6px 8px;border:1px solid #cfd8e3;">${safe(v)}</td></tr>`)
+        .join("");
+    }
+
+    function downloadDocForItem(item) {
+      if (!item) return;
+      const fileNameBase = String(item.objectName || "spravka")
+        .replace(/[\\/:*?"<>|]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 80);
+      const html = `<!doctype html><html><head><meta charset="utf-8"></head><body><h2>Справка по объекту</h2><p><b>Дата формирования:</b> ${new Date().toLocaleString("ru-RU")}</p><table style="border-collapse:collapse;width:100%;font-family:Segoe UI,Arial,sans-serif;font-size:12pt;">${createDocRows(item)}</table></body></html>`;
+      const blob = new Blob(["\ufeff", html], { type: "application/msword" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${fileNameBase || "spravka"}.doc`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function updateSelectedMeta() {
+      const selected = state.items.find((x) => normalizeObjectKey(x.objectName) === state.selectedObjectKey);
+      if (!selected) {
+        selectedMeta.textContent = "Объект не выбран";
+        downloadSelectedBtn.disabled = true;
+        return;
+      }
+      selectedMeta.textContent = `Выбран: ${selected.objectName}`;
+      downloadSelectedBtn.disabled = false;
     }
 
     function normalizePercent(value) {
@@ -317,6 +442,17 @@
         .replace(/["'`«»]/g, "")
         .replace(/\s+/g, " ")
         .trim();
+    }
+
+    function isContracted(contractNumber) {
+      if (contractNumber === null || contractNumber === undefined) return false;
+      const text = String(contractNumber).replace(/\s+/g, " ").trim();
+      if (!text) return false;
+
+      const normalized = text.replace(",", ".").replace(/\s/g, "");
+      if (/^0+([.]0+)?$/.test(normalized)) return false;
+
+      return true;
     }
 
     function parseCSV(text) {
@@ -469,7 +605,7 @@
       }
 
       results.innerHTML = items.map((it) => `
-        <article class="card">
+        <article class="card ${state.selectedObjectKey === normalizeObjectKey(it.objectName) ? "selected" : ""}" data-object-key="${normalizeObjectKey(it.objectName)}">
           <div class="title">${safe(it.objectName)}</div>
           <div>
             <span class="chip">${safe(it.region)}</span>
@@ -524,32 +660,61 @@
             ${createField("Мощность (куб.м./сут)", it.capacityPerDay)}
             ${createField("Протяженность (м)", it.lengthMeters)}
           </div>
+          <div class="card-actions">
+            <button type="button" class="btn" data-action="select-card" data-object-key="${normalizeObjectKey(it.objectName)}">Выбрать объект</button>
+            <button type="button" class="btn primary" data-action="download-card" data-object-key="${normalizeObjectKey(it.objectName)}">Скачать справку (.doc)</button>
+          </div>
         </article>
       `).join("");
     }
 
     results.addEventListener("click", (event) => {
       const button = event.target.closest(".toggle-btn");
-      if (!button) return;
+      if (button) {
+        const container = button.closest(".expandable");
+        if (!container) return;
+        const expanded = container.getAttribute("data-expanded") === "true";
+        container.setAttribute("data-expanded", expanded ? "false" : "true");
+        button.textContent = expanded ? "Показать полностью" : "Свернуть";
+      }
 
-      const container = button.closest(".expandable");
-      if (!container) return;
+      const actionBtn = event.target.closest("[data-action]");
+      if (!actionBtn) return;
 
-      const expanded = container.getAttribute("data-expanded") === "true";
-      container.setAttribute("data-expanded", expanded ? "false" : "true");
-      button.textContent = expanded ? "Показать полностью" : "Свернуть";
+      const objectKey = actionBtn.getAttribute("data-object-key");
+      const item = state.items.find((x) => normalizeObjectKey(x.objectName) === objectKey);
+      if (!item) return;
+
+      const action = actionBtn.getAttribute("data-action");
+      if (action === "select-card") {
+        state.selectedObjectKey = objectKey;
+        localStorage.setItem("pocketGuideSelectedObjectKey", objectKey);
+        updateSelectedMeta();
+        renderCards(state.filtered.slice(0, 250));
+      } else if (action === "download-card") {
+        state.selectedObjectKey = objectKey;
+        localStorage.setItem("pocketGuideSelectedObjectKey", objectKey);
+        updateSelectedMeta();
+        downloadDocForItem(item);
+      }
     });
 
     function applyFilters() {
       const query = queryInput.value.trim().toLowerCase();
       const region = regionSelect.value;
       const year = yearSelect.value;
+      const objectType = objectTypeSelect.value;
+      const contracted = contractedSelect.value;
 
       state.filtered = state.items.filter((item) => {
         const regionMatch = !region || item.region === region;
         const yearMatch = !year || String(item.commissioningYear) === year;
+        const typeMatch = !objectType || item.objectType === objectType;
+        const contractedMatch = !contracted
+          || (contracted === "yes" && isContracted(item.contractNumber))
+          || (contracted === "no" && !isContracted(item.contractNumber));
         const queryMatch = !query || (item.searchText && item.searchText.includes(query));
-        return regionMatch && yearMatch && queryMatch;
+        return regionMatch && yearMatch && typeMatch && contractedMatch && queryMatch;
       });
 
       summary.textContent = `Найдено: ${state.filtered.length} из ${state.items.length}`;
@@ -572,16 +737,28 @@
       yearSelect.innerHTML = options.join("");
     }
 
+    function initObjectTypeOptions(objectTypes) {
+      const options = [`<option value="">Все типы объекта</option>`];
+      for (const objectType of objectTypes) {
+        options.push(`<option value="${escapeHtml(objectType)}">${escapeHtml(objectType)}</option>`);
+      }
+      objectTypeSelect.innerHTML = options.join("");
+    }
+
     async function init() {
+      state.selectedObjectKey = localStorage.getItem("pocketGuideSelectedObjectKey") || "";
       try {
         const data = await loadFromGoogleSheet();
         state.items = data.items || [];
         state.regions = data.regions || [];
         state.years = data.years || [];
+        state.objectTypes = Array.from(new Set(state.items.map((x) => x.objectType).filter(Boolean))).sort();
         initRegionOptions(state.regions);
         initYearOptions(state.years);
+        initObjectTypeOptions(state.objectTypes);
         summary.textContent = `Загружено из Google Sheets: ${state.items.length} записей`;
         applyFilters();
+        updateSelectedMeta();
       } catch (error) {
         try {
           const response = await fetch("./data.json");
@@ -590,10 +767,13 @@
           state.regions = data.regions || [];
           state.years = Array.from(new Set(state.items.map((x) => x.commissioningYear).filter((y) => y !== null && y !== undefined && y !== "")))
             .sort((a, b) => Number(a) - Number(b));
+          state.objectTypes = Array.from(new Set(state.items.map((x) => x.objectType).filter(Boolean))).sort();
           initRegionOptions(state.regions);
           initYearOptions(state.years);
+          initObjectTypeOptions(state.objectTypes);
           summary.textContent = `Google Sheets недоступен, загружен локальный data.json: ${state.items.length} записей`;
           applyFilters();
+          updateSelectedMeta();
         } catch (fallbackError) {
           summary.textContent = "Ошибка загрузки данных";
           results.innerHTML = `<div class="empty">Не удалось загрузить данные ни из Google Sheets, ни из data.json.</div>`;
@@ -604,6 +784,13 @@
     queryInput.addEventListener("input", applyFilters);
     regionSelect.addEventListener("change", applyFilters);
     yearSelect.addEventListener("change", applyFilters);
+    objectTypeSelect.addEventListener("change", applyFilters);
+    contractedSelect.addEventListener("change", applyFilters);
+    downloadSelectedBtn.addEventListener("click", () => {
+      const item = state.items.find((x) => normalizeObjectKey(x.objectName) === state.selectedObjectKey);
+      if (!item) return;
+      downloadDocForItem(item);
+    });
     init();
   </script>
 </body>
