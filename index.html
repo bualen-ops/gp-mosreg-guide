@@ -514,6 +514,21 @@
       return true;
     }
 
+    function normalizeContractNumber(value) {
+      const normalized = normalizeValue(value);
+      if (!isContracted(normalized)) return null;
+      return String(normalized).trim();
+    }
+
+    function normalizeContractor(value) {
+      const normalized = normalizeValue(value);
+      if (normalized === null || normalized === undefined) return null;
+      const text = String(normalized).trim();
+      if (!text) return null;
+      if (/^0+([.,]0+)?$/.test(text.replace(/\s/g, ""))) return null;
+      return text;
+    }
+
     function parseCSV(text) {
       const rows = [];
       let row = [];
@@ -567,6 +582,8 @@
           record[dst] = normalizeValue(raw[src]);
         }
       }
+      record.contractNumber = normalizeContractNumber(record.contractNumber);
+      record.contractor = normalizeContractor(record.contractor);
       record.region = normalizeRegion(raw["ОМСУ"] ?? raw["ОМСУ "]);
       record.commissioningYear = normalizeCommissioningYear(raw["Год ввода"] ?? raw["Год ввода "]);
 
@@ -632,7 +649,7 @@
       }
 
       // Enrich from the second Google Sheet by object name:
-      // Q -> extraContractNumber, R -> extraManager, S -> extraComment.
+      // R -> extraManager, S -> extraComment.
       try {
         const extraResponse = await fetch(GOOGLE_SHEET_EXTRA_CSV_URL, { cache: "no-store" });
         if (extraResponse.ok) {
@@ -641,7 +658,6 @@
           if (extraTable.length > 1) {
             const extraHeaders = extraTable[0].map((h) => (h || "").trim());
             const nameIdx = extraHeaders.findIndex((h) => h === "Наименование объекта");
-            const qIdx = 16; // Column Q (1-based 17): "№ контракта"
             const rIdx = 17; // Column R (1-based 18): "РП"
             const sIdx = 18; // Column S (1-based 19): "Комментарий"
 
@@ -652,22 +668,17 @@
               const key = normalizeObjectKey(objectName);
               if (!key) continue;
 
-              const extraContractNumber = normalizeValue(row[qIdx]);
               const extraManager = normalizeValue(row[rIdx]);
               const extraComment = normalizeValue(row[sIdx]);
-              if (!extraContractNumber && !extraManager && !extraComment) continue;
+              if (!extraManager && !extraComment) continue;
 
-              extraByObject.set(key, { extraContractNumber, extraManager, extraComment });
+              extraByObject.set(key, { extraManager, extraComment });
             }
 
             for (const item of items) {
               const key = normalizeObjectKey(item.objectName);
               const extra = extraByObject.get(key);
               if (!extra) continue;
-              item.extraContractNumber = extra.extraContractNumber || null;
-              if (!isContracted(item.contractNumber) && isContracted(item.extraContractNumber)) {
-                item.contractNumber = item.extraContractNumber;
-              }
               item.extraManager = extra.extraManager || null;
               item.extraComment = extra.extraComment || null;
             }
