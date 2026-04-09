@@ -6,12 +6,14 @@
   <title>Карманный справочник объектов</title>
   <style>
     :root {
-      --bg: #f4f6fb;
+      --bg: #eef3fb;
       --card: #ffffff;
-      --text: #1f2937;
-      --muted: #667085;
-      --accent: #135dff;
-      --line: #e6e8ef;
+      --text: #16233b;
+      --muted: #5a6b87;
+      --accent: #1f4fbf;
+      --line: #d7e1f1;
+      --accent-soft: #e8f0ff;
+      --header-bg: #f7faff;
     }
     * { box-sizing: border-box; }
     body {
@@ -30,22 +32,24 @@
       margin: 8px 0 10px;
     }
     .controls {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 12px;
+      background: linear-gradient(180deg, var(--header-bg) 0%, #f3f7ff 100%);
+      border: 1px solid #c9d8f0;
+      border-radius: 14px;
       padding: 10px;
       position: sticky;
       top: 0;
       z-index: 10;
+      box-shadow: 0 6px 16px rgba(22, 35, 59, 0.06);
     }
     input, select {
       width: 100%;
       font-size: 16px;
       padding: 10px;
       border-radius: 10px;
-      border: 1px solid #d5d9e3;
+      border: 1px solid #c8d6ef;
       margin-bottom: 8px;
       background: #fff;
+      color: var(--text);
     }
     .meta {
       color: var(--muted);
@@ -54,11 +58,11 @@
     }
     .card {
       background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 12px;
+      border: 1px solid #cfdbf0;
+      border-radius: 14px;
       padding: 12px;
       margin-top: 10px;
-      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+      box-shadow: 0 4px 14px rgba(18, 39, 79, 0.08);
     }
     .title {
       font-size: 16px;
@@ -71,9 +75,9 @@
       font-size: 12px;
       border-radius: 999px;
       padding: 4px 9px;
-      border: 1px solid #cbd6ff;
-      color: #0a3cb3;
-      background: #ecf1ff;
+      border: 1px solid #b9ccf2;
+      color: #183f8d;
+      background: #e9f0ff;
       margin-right: 6px;
       margin-bottom: 6px;
     }
@@ -109,10 +113,10 @@
     .section {
       margin-top: 10px;
       padding-top: 8px;
-      border-top: 1px dashed #dbe1ee;
+      border-top: 1px dashed #d2def1;
     }
     .section-title {
-      color: #3f4a62;
+      color: #274b88;
       font-size: 12px;
       font-weight: 700;
       letter-spacing: 0.03em;
@@ -136,7 +140,7 @@
       padding: 0;
       border: 0;
       background: transparent;
-      color: var(--accent);
+      color: #1a47a8;
       font-size: 13px;
       cursor: pointer;
       text-decoration: underline;
@@ -157,7 +161,7 @@
     .selected-meta {
       margin-top: 6px;
       font-size: 13px;
-      color: #1d3557;
+      color: #1c3f7a;
     }
     .toolbar {
       margin-top: 8px;
@@ -166,18 +170,18 @@
       flex-wrap: wrap;
     }
     .btn {
-      border: 1px solid #cdd6ea;
-      background: #fff;
-      color: #1f2937;
+      border: 1px solid #c0d0ec;
+      background: #ffffff;
+      color: #1a2f52;
       border-radius: 10px;
       padding: 8px 12px;
       font-size: 14px;
       cursor: pointer;
     }
     .btn.primary {
-      border-color: #b9cbff;
-      background: #e9f0ff;
-      color: #0a3cb3;
+      border-color: #9fbaf0;
+      background: linear-gradient(180deg, #e8f0ff 0%, #d8e6ff 100%);
+      color: #133d95;
       font-weight: 600;
     }
     .btn:disabled {
@@ -185,8 +189,8 @@
       cursor: not-allowed;
     }
     .card.selected {
-      border-color: #91b2ff;
-      box-shadow: 0 0 0 2px rgba(19, 93, 255, 0.15);
+      border-color: #8aa8e7;
+      box-shadow: 0 0 0 2px rgba(31, 79, 191, 0.18), 0 6px 18px rgba(22, 35, 59, 0.12);
     }
     .card-actions {
       margin-top: 10px;
@@ -216,7 +220,8 @@
         <option value="no">Только незаконтрактованные</option>
       </select>
       <div class="toolbar">
-        <button id="downloadSelectedBtn" type="button" class="btn primary" disabled>Скачать выбранную справку (.doc)</button>
+        <button id="downloadSelectedBtn" type="button" class="btn primary" disabled>Скачать выбранную справку (.html)</button>
+        <button id="downloadSelectedDocBtn" type="button" class="btn" disabled>Скачать .doc (legacy)</button>
       </div>
       <div class="selected-meta" id="selectedMeta">Объект не выбран</div>
       <div class="meta" id="summary">Загрузка данных...</div>
@@ -273,6 +278,7 @@
     const objectTypeSelect = document.getElementById("objectTypeSelect");
     const contractedSelect = document.getElementById("contractedSelect");
     const downloadSelectedBtn = document.getElementById("downloadSelectedBtn");
+    const downloadSelectedDocBtn = document.getElementById("downloadSelectedDocBtn");
     const selectedMeta = document.getElementById("selectedMeta");
     const results = document.getElementById("results");
     const summary = document.getElementById("summary");
@@ -346,6 +352,29 @@
         .join("");
     }
 
+    function buildReportHtml(item) {
+      return `<!doctype html><html><head><meta charset="utf-8"><title>Справка по объекту</title></head><body><h2>Справка по объекту</h2><p><b>Дата формирования:</b> ${new Date().toLocaleString("ru-RU")}</p><table style="border-collapse:collapse;width:100%;font-family:Segoe UI,Arial,sans-serif;font-size:12pt;">${createDocRows(item)}</table></body></html>`;
+    }
+
+    function downloadHtmlForItem(item) {
+      if (!item) return;
+      const fileNameBase = String(item.objectName || "spravka")
+        .replace(/[\\/:*?"<>|]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 80);
+      const html = buildReportHtml(item);
+      const blob = new Blob(["\ufeff", html], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${fileNameBase || "spravka"}.html`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
     function downloadDocForItem(item) {
       if (!item) return;
       const fileNameBase = String(item.objectName || "spravka")
@@ -353,7 +382,7 @@
         .replace(/\s+/g, " ")
         .trim()
         .slice(0, 80);
-      const html = `<!doctype html><html><head><meta charset="utf-8"></head><body><h2>Справка по объекту</h2><p><b>Дата формирования:</b> ${new Date().toLocaleString("ru-RU")}</p><table style="border-collapse:collapse;width:100%;font-family:Segoe UI,Arial,sans-serif;font-size:12pt;">${createDocRows(item)}</table></body></html>`;
+      const html = buildReportHtml(item);
       const blob = new Blob(["\ufeff", html], { type: "application/msword" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -370,10 +399,12 @@
       if (!selected) {
         selectedMeta.textContent = "Объект не выбран";
         downloadSelectedBtn.disabled = true;
+        downloadSelectedDocBtn.disabled = true;
         return;
       }
       selectedMeta.textContent = `Выбран: ${selected.objectName}`;
       downloadSelectedBtn.disabled = false;
+      downloadSelectedDocBtn.disabled = false;
     }
 
     function normalizePercent(value) {
@@ -544,14 +575,36 @@
         const row = table[i];
         const raw = {};
         headers.forEach((header, idx) => {
-          raw[header] = row[idx];
+          const value = row[idx];
+          if (raw[header] === undefined) {
+            raw[header] = value;
+            return;
+          }
+
+          // Some source sheets contain duplicate headers (e.g. "№ контракта").
+          // For contract number we prefer non-zero/non-empty values.
+          if (header === "№ контракта") {
+            const current = raw[header];
+            const currentContracted = isContracted(current);
+            const nextContracted = isContracted(value);
+            if (!currentContracted && nextContracted) {
+              raw[header] = value;
+            }
+            return;
+          }
+
+          const currentText = String(raw[header] ?? "").trim();
+          const nextText = String(value ?? "").trim();
+          if (!currentText && nextText) {
+            raw[header] = value;
+          }
         });
         const record = buildRecord(raw);
         if (record) items.push(record);
       }
 
       // Enrich from the second Google Sheet by object name:
-      // R -> extraManager, S -> extraComment.
+      // Q -> extraContractNumber, R -> extraManager, S -> extraComment.
       try {
         const extraResponse = await fetch(GOOGLE_SHEET_EXTRA_CSV_URL, { cache: "no-store" });
         if (extraResponse.ok) {
@@ -560,6 +613,7 @@
           if (extraTable.length > 1) {
             const extraHeaders = extraTable[0].map((h) => (h || "").trim());
             const nameIdx = extraHeaders.findIndex((h) => h === "Наименование объекта");
+            const qIdx = 16; // Column Q (1-based 17): "№ контракта"
             const rIdx = 17; // Column R (1-based 18): "РП"
             const sIdx = 18; // Column S (1-based 19): "Комментарий"
 
@@ -570,17 +624,22 @@
               const key = normalizeObjectKey(objectName);
               if (!key) continue;
 
+              const extraContractNumber = normalizeValue(row[qIdx]);
               const extraManager = normalizeValue(row[rIdx]);
               const extraComment = normalizeValue(row[sIdx]);
-              if (!extraManager && !extraComment) continue;
+              if (!extraContractNumber && !extraManager && !extraComment) continue;
 
-              extraByObject.set(key, { extraManager, extraComment });
+              extraByObject.set(key, { extraContractNumber, extraManager, extraComment });
             }
 
             for (const item of items) {
               const key = normalizeObjectKey(item.objectName);
               const extra = extraByObject.get(key);
               if (!extra) continue;
+              item.extraContractNumber = extra.extraContractNumber || null;
+              if (!isContracted(item.contractNumber) && isContracted(item.extraContractNumber)) {
+                item.contractNumber = item.extraContractNumber;
+              }
               item.extraManager = extra.extraManager || null;
               item.extraComment = extra.extraComment || null;
             }
@@ -662,7 +721,8 @@
           </div>
           <div class="card-actions">
             <button type="button" class="btn" data-action="select-card" data-object-key="${normalizeObjectKey(it.objectName)}">Выбрать объект</button>
-            <button type="button" class="btn primary" data-action="download-card" data-object-key="${normalizeObjectKey(it.objectName)}">Скачать справку (.doc)</button>
+            <button type="button" class="btn primary" data-action="download-card" data-object-key="${normalizeObjectKey(it.objectName)}">Скачать справку (.html)</button>
+            <button type="button" class="btn" data-action="download-card-doc" data-object-key="${normalizeObjectKey(it.objectName)}">.doc (legacy)</button>
           </div>
         </article>
       `).join("");
@@ -692,6 +752,11 @@
         updateSelectedMeta();
         renderCards(state.filtered.slice(0, 250));
       } else if (action === "download-card") {
+        state.selectedObjectKey = objectKey;
+        localStorage.setItem("pocketGuideSelectedObjectKey", objectKey);
+        updateSelectedMeta();
+        downloadHtmlForItem(item);
+      } else if (action === "download-card-doc") {
         state.selectedObjectKey = objectKey;
         localStorage.setItem("pocketGuideSelectedObjectKey", objectKey);
         updateSelectedMeta();
@@ -752,7 +817,9 @@
         state.items = data.items || [];
         state.regions = data.regions || [];
         state.years = data.years || [];
-        state.objectTypes = Array.from(new Set(state.items.map((x) => x.objectType).filter(Boolean))).sort();
+        state.objectTypes = Array.from(
+          new Set(state.items.map((x) => x.objectType).filter((v) => v && String(v).trim() !== "11"))
+        ).sort();
         initRegionOptions(state.regions);
         initYearOptions(state.years);
         initObjectTypeOptions(state.objectTypes);
@@ -767,7 +834,9 @@
           state.regions = data.regions || [];
           state.years = Array.from(new Set(state.items.map((x) => x.commissioningYear).filter((y) => y !== null && y !== undefined && y !== "")))
             .sort((a, b) => Number(a) - Number(b));
-          state.objectTypes = Array.from(new Set(state.items.map((x) => x.objectType).filter(Boolean))).sort();
+          state.objectTypes = Array.from(
+            new Set(state.items.map((x) => x.objectType).filter((v) => v && String(v).trim() !== "11"))
+          ).sort();
           initRegionOptions(state.regions);
           initYearOptions(state.years);
           initObjectTypeOptions(state.objectTypes);
@@ -787,6 +856,11 @@
     objectTypeSelect.addEventListener("change", applyFilters);
     contractedSelect.addEventListener("change", applyFilters);
     downloadSelectedBtn.addEventListener("click", () => {
+      const item = state.items.find((x) => normalizeObjectKey(x.objectName) === state.selectedObjectKey);
+      if (!item) return;
+      downloadHtmlForItem(item);
+    });
+    downloadSelectedDocBtn.addEventListener("click", () => {
       const item = state.items.find((x) => normalizeObjectKey(x.objectName) === state.selectedObjectKey);
       if (!item) return;
       downloadDocForItem(item);
