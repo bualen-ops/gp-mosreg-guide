@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Карманный справочник объектов</title>
+  <style>
+    :root {
+      --bg: #f4f6fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #667085;
+      --accent: #135dff;
+      --line: #e6e8ef;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .wrap {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 12px;
+    }
+    h1 {
+      font-size: 20px;
+      margin: 8px 0 10px;
+    }
+    .controls {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    input, select {
+      width: 100%;
+      font-size: 16px;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid #d5d9e3;
+      margin-bottom: 8px;
+      background: #fff;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 13px;
+      margin: 6px 2px 2px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      margin-top: 10px;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+    }
+    .title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      line-height: 1.35;
+    }
+    .chip {
+      display: inline-block;
+      font-size: 12px;
+      border-radius: 999px;
+      padding: 4px 9px;
+      border: 1px solid #cbd6ff;
+      color: #0a3cb3;
+      background: #ecf1ff;
+      margin-right: 6px;
+      margin-bottom: 6px;
+    }
+    .chip-progress {
+      font-weight: 700;
+      border-width: 1px;
+    }
+    .chip-progress.high {
+      color: #0f6a2e;
+      background: #e9f9ee;
+      border-color: #9be2b1;
+    }
+    .chip-progress.mid {
+      color: #8a5a00;
+      background: #fff6de;
+      border-color: #f2d37f;
+    }
+    .chip-progress.low {
+      color: #a01414;
+      background: #ffebeb;
+      border-color: #f4aaaa;
+    }
+    .chip-progress.na {
+      color: #475467;
+      background: #eef2f6;
+      border-color: #cfd8e3;
+    }
+    .row {
+      margin-top: 4px;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    .section {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #dbe1ee;
+    }
+    .section-title {
+      color: #3f4a62;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+    .expandable {
+      display: inline;
+    }
+    .expandable .full {
+      display: none;
+    }
+    .expandable[data-expanded="true"] .short {
+      display: none;
+    }
+    .expandable[data-expanded="true"] .full {
+      display: inline;
+    }
+    .toggle-btn {
+      margin-left: 6px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--accent);
+      font-size: 13px;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .k {
+      color: var(--muted);
+      margin-right: 4px;
+    }
+    .empty {
+      color: var(--muted);
+      background: var(--card);
+      border: 1px dashed #ccd3e0;
+      border-radius: 12px;
+      padding: 14px;
+      margin-top: 12px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Карманный справочник объектов</h1>
+    <div class="controls">
+      <input id="queryInput" type="search" placeholder="Поиск по названию, типу, коду...">
+      <select id="regionSelect">
+        <option value="">Все регионы</option>
+      </select>
+      <select id="yearSelect">
+        <option value="">Все годы ввода</option>
+      </select>
+      <div class="meta" id="summary">Загрузка данных...</div>
+    </div>
+    <div id="results"></div>
+  </div>
+
+  <script>
+    const GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1mib0hQuuvrcS2aEzXnB-Thum7Q1MkCJfXv952PmZ5Sk/gviz/tq?tqx=out:csv&gid=2000408560";
+    const GOOGLE_SHEET_EXTRA_CSV_URL = "https://docs.google.com/spreadsheets/d/1hTOtAs6hxNJ__tHFgpKsZEolg4QDryHUEd-rt0d5fiQ/gviz/tq?tqx=out:csv&gid=0";
+    const FIELD_MAP = {
+      "Субсидия": "subsidy",
+      "Фед. субсидия": "federalSubsidy",
+      "ОМСУ": "region",
+      "Наименование объекта": "objectName",
+      "Вид работ": "workType",
+      "Тип объекта": "objectType",
+      "Вводные": "intro",
+      "Срок реализации": "timeline",
+      "Год ввода": "commissioningYear",
+      "Охват": "coverage",
+      "Мощность, куб.м./сут": "capacityPerDay",
+      "Протяженность, метр": "lengthMeters",
+      "Перенос срока по объекту (да/нет)": "deadlineShift",
+      "Стадия готовности %": "readinessPercent",
+      "Комментарий руководителей проектов": "managerComment",
+      "Лимит на 2025-2028 годы Итого": "limit2025to2028",
+      "Итого 2026 Итого": "total2026",
+      "Наличие ПСД (да, нет, не требуется)": "psdAvailability",
+      "МОГЭ № положительного заключения МОГЭ": "mogePositiveNumber",
+      "Сметная стоимость (по заключению МОГЭ)": "estimateByMoge",
+      "в т.ч. ПИР": "pirPart",
+      "Наличие МОГЭ ( да, нет, не требуется)": "mogeAvailability",
+      "Наличие МОГЭ (да, нет, не требуется)": "mogeAvailability",
+      "планируемая дата выхода из МОГЭ (для объектов находящихся в МОГЭ)": "mogePlannedDate",
+      "Дата заключения контракта": "contractSignedAt",
+      "№ контракта": "contractNumber",
+      "Подрядная организация": "contractor",
+      "Подрядная \nорганизация": "contractor",
+    };
+
+    const state = {
+      items: [],
+      filtered: [],
+      regions: [],
+      years: [],
+    };
+
+    const queryInput = document.getElementById("queryInput");
+    const regionSelect = document.getElementById("regionSelect");
+    const yearSelect = document.getElementById("yearSelect");
+    const results = document.getElementById("results");
+    const summary = document.getElementById("summary");
+
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll("\"", "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function safe(v) {
+      if (v === null || v === undefined || v === "") return "—";
+      return escapeHtml(v);
+    }
+
+    function createField(label, value, options = {}) {
+      const text = value === null || value === undefined ? "" : String(value);
+      const collapsible = Boolean(options.collapsible);
+      const maxLength = options.maxLength || 140;
+
+      if (!text.trim()) {
+        return `<div class="row"><span class="k">${label}:</span>—</div>`;
+      }
+
+      if (collapsible && text.length > maxLength) {
+        const shortText = `${escapeHtml(text.slice(0, maxLength).trim())}...`;
+        const fullText = escapeHtml(text);
+        return `<div class="row"><span class="k">${label}:</span><span class="expandable" data-expanded="false"><span class="short">${shortText}</span><span class="full">${fullText}</span><button class="toggle-btn" type="button">Показать полностью</button></span></div>`;
+      }
+
+      return `<div class="row"><span class="k">${label}:</span>${escapeHtml(text)}</div>`;
+    }
+
+    function normalizePercent(value) {
+      if (value === null || value === undefined || value === "") return null;
+      const parsed = Number(String(value).replace("%", "").replace(",", ".").trim());
+      if (Number.isNaN(parsed)) return null;
+      return Math.max(0, Math.min(100, parsed));
+    }
+
+    function progressChip(value) {
+      const percent = normalizePercent(value);
+      if (percent === null) {
+        return `<span class="chip chip-progress na">Готовность: н/д</span>`;
+      }
+
+      let cls = "low";
+      if (percent >= 80) cls = "high";
+      else if (percent >= 40) cls = "mid";
+
+      const text = Number.isInteger(percent) ? `${percent}%` : `${percent.toFixed(1)}%`;
+      return `<span class="chip chip-progress ${cls}">Готовность: ${text}</span>`;
+    }
+
+    function normalizeValue(value) {
+      if (value === null || value === undefined) return null;
+      const compact = String(value).replace(/\s+/g, " ").trim();
+      if (!compact) return null;
+      const numeric = Number(compact.replace(",", "."));
+      if (!Number.isNaN(numeric) && compact.match(/^-?\d+([.,]\d+)?$/)) {
+        return Number.isInteger(numeric) ? numeric : numeric;
+      }
+      return compact;
+    }
+
+    function normalizeRegion(value) {
+      const normalized = normalizeValue(value);
+      if (!normalized) return null;
+      const text = String(normalized).trim();
+
+      // Exclude service/noise rows from source sheet.
+      if (/^\d+$/.test(text)) return null;
+      if (/links national/i.test(text)) return null;
+      // Keep only human-readable Russian region names for the region filter.
+      if (!/[А-Яа-яЁё]/.test(text)) return null;
+
+      return text;
+    }
+
+    function normalizeCommissioningYear(value) {
+      const normalized = normalizeValue(value);
+      if (normalized === null || normalized === undefined || normalized === "") return null;
+      const text = String(normalized).trim();
+      const year = Number(text);
+      if (!Number.isInteger(year)) return null;
+      // Keep only realistic commissioning years.
+      if (year < 2000 || year > 2100) return null;
+      return year;
+    }
+
+    function normalizeObjectKey(value) {
+      const normalized = normalizeValue(value);
+      if (!normalized) return "";
+      return String(normalized)
+        .toLowerCase()
+        .replaceAll("ё", "е")
+        .replace(/["'`«»]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function parseCSV(text) {
+      const rows = [];
+      let row = [];
+      let cell = "";
+      let inQuotes = false;
+
+      for (let i = 0; i < text.length; i += 1) {
+        const char = text[i];
+        const next = text[i + 1];
+
+        if (char === "\"") {
+          if (inQuotes && next === "\"") {
+            cell += "\"";
+            i += 1;
+          } else {
+            inQuotes = !inQuotes;
+          }
+          continue;
+        }
+
+        if (!inQuotes && char === ",") {
+          row.push(cell);
+          cell = "";
+          continue;
+        }
+
+        if (!inQuotes && (char === "\n" || char === "\r")) {
+          if (char === "\r" && next === "\n") i += 1;
+          row.push(cell);
+          rows.push(row);
+          row = [];
+          cell = "";
+          continue;
+        }
+
+        cell += char;
+      }
+
+      if (cell.length || row.length) {
+        row.push(cell);
+        rows.push(row);
+      }
+
+      return rows;
+    }
+
+    function buildRecord(raw) {
+      const record = {};
+      for (const [src, dst] of Object.entries(FIELD_MAP)) {
+        if (raw[src] !== undefined) {
+          record[dst] = normalizeValue(raw[src]);
+        }
+      }
+      record.region = normalizeRegion(raw["ОМСУ"] ?? raw["ОМСУ "]);
+      record.commissioningYear = normalizeCommissioningYear(raw["Год ввода"] ?? raw["Год ввода "]);
+
+      const objectName = record.objectName;
+      if (!objectName) return null;
+
+      const searchableParts = [
+        record.region,
+        record.objectName,
+        record.workType,
+        record.objectType,
+        record.contractNumber,
+        record.contractor,
+      ].filter(Boolean);
+      record.searchText = searchableParts.join(" ").toLowerCase();
+      return record;
+    }
+
+    async function loadFromGoogleSheet() {
+      const response = await fetch(GOOGLE_SHEET_CSV_URL, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`Google Sheets HTTP ${response.status}`);
+      }
+
+      const csvText = await response.text();
+      const table = parseCSV(csvText);
+      if (!table.length) {
+        throw new Error("Google Sheets вернул пустой CSV");
+      }
+
+      const headers = table[0].map((h) => (h || "").trim());
+      const items = [];
+      for (let i = 1; i < table.length; i += 1) {
+        const row = table[i];
+        const raw = {};
+        headers.forEach((header, idx) => {
+          raw[header] = row[idx];
+        });
+        const record = buildRecord(raw);
+        if (record) items.push(record);
+      }
+
+      // Enrich from the second Google Sheet by object name:
+      // R -> extraManager, S -> extraComment.
+      try {
+        const extraResponse = await fetch(GOOGLE_SHEET_EXTRA_CSV_URL, { cache: "no-store" });
+        if (extraResponse.ok) {
+          const extraCsvText = await extraResponse.text();
+          const extraTable = parseCSV(extraCsvText);
+          if (extraTable.length > 1) {
+            const extraHeaders = extraTable[0].map((h) => (h || "").trim());
+            const nameIdx = extraHeaders.findIndex((h) => h === "Наименование объекта");
+            const rIdx = 17; // Column R (1-based 18): "РП"
+            const sIdx = 18; // Column S (1-based 19): "Комментарий"
+
+            const extraByObject = new Map();
+            for (let i = 1; i < extraTable.length; i += 1) {
+              const row = extraTable[i];
+              const objectName = nameIdx >= 0 ? row[nameIdx] : row[6];
+              const key = normalizeObjectKey(objectName);
+              if (!key) continue;
+
+              const extraManager = normalizeValue(row[rIdx]);
+              const extraComment = normalizeValue(row[sIdx]);
+              if (!extraManager && !extraComment) continue;
+
+              extraByObject.set(key, { extraManager, extraComment });
+            }
+
+            for (const item of items) {
+              const key = normalizeObjectKey(item.objectName);
+              const extra = extraByObject.get(key);
+              if (!extra) continue;
+              item.extraManager = extra.extraManager || null;
+              item.extraComment = extra.extraComment || null;
+            }
+          }
+        }
+      } catch (error) {
+        // If extra source is temporarily unavailable, keep base data working.
+      }
+
+      return {
+        items,
+        regions: Array.from(new Set(items.map((x) => x.region).filter(Boolean))).sort(),
+        years: Array.from(new Set(items.map((x) => x.commissioningYear).filter((y) => y !== null && y !== undefined && y !== "")))
+          .sort((a, b) => Number(a) - Number(b)),
+      };
+    }
+
+    function renderCards(items) {
+      if (!items.length) {
+        results.innerHTML = `<div class="empty">Ничего не найдено. Попробуйте изменить запрос или регион.</div>`;
+        return;
+      }
+
+      results.innerHTML = items.map((it) => `
+        <article class="card">
+          <div class="title">${safe(it.objectName)}</div>
+          <div>
+            <span class="chip">${safe(it.region)}</span>
+            <span class="chip">${safe(it.objectType)}</span>
+            ${progressChip(it.readinessPercent)}
+          </div>
+          <div class="section">
+            <div class="section-title">Статус</div>
+            ${createField("Готовность (%)", it.readinessPercent)}
+            ${createField("Перенос срока", it.deadlineShift)}
+            ${createField("Срок реализации", it.timeline)}
+            ${createField("Год ввода", it.commissioningYear)}
+          </div>
+
+          <div class="section">
+            <div class="section-title">Комментарий</div>
+            ${createField("Комментарий РП", it.managerComment, { collapsible: true, maxLength: 180 })}
+            ${createField("Комментарий (доп. источник)", it.extraComment, { collapsible: true, maxLength: 180 })}
+          </div>
+
+          <div class="section">
+            <div class="section-title">Профиль объекта</div>
+            ${createField("Вид работ", it.workType, { collapsible: true })}
+            ${createField("Вводные", it.intro, { collapsible: true })}
+          </div>
+
+          <div class="section">
+            <div class="section-title">Контракт</div>
+            ${createField("№ контракта", it.contractNumber)}
+            ${createField("Дата заключения контракта", it.contractSignedAt)}
+            ${createField("Подрядчик", it.contractor, { collapsible: true, maxLength: 180 })}
+            ${createField("РП (доп. источник)", it.extraManager)}
+          </div>
+
+          <div class="section">
+            <div class="section-title">Экспертиза</div>
+            ${createField("Наличие ПСД", it.psdAvailability)}
+            ${createField("Наличие МОГЭ", it.mogeAvailability)}
+            ${createField("План. дата выхода из МОГЭ", it.mogePlannedDate)}
+            ${createField("№ МОГЭ", it.mogePositiveNumber)}
+          </div>
+
+          <div class="section">
+            <div class="section-title">Финансы и показатели</div>
+            ${createField("Сметная стоимость", it.estimateByMoge)}
+            ${createField("в т.ч. ПИР", it.pirPart)}
+            ${createField("Лимит 2025-2028", it.limit2025to2028)}
+            ${createField("Итого 2026", it.total2026)}
+            ${createField("Субсидия", it.subsidy)}
+            ${createField("Фед. субсидия", it.federalSubsidy)}
+            ${createField("Охват", it.coverage)}
+            ${createField("Мощность (куб.м./сут)", it.capacityPerDay)}
+            ${createField("Протяженность (м)", it.lengthMeters)}
+          </div>
+        </article>
+      `).join("");
+    }
+
+    results.addEventListener("click", (event) => {
+      const button = event.target.closest(".toggle-btn");
+      if (!button) return;
+
+      const container = button.closest(".expandable");
+      if (!container) return;
+
+      const expanded = container.getAttribute("data-expanded") === "true";
+      container.setAttribute("data-expanded", expanded ? "false" : "true");
+      button.textContent = expanded ? "Показать полностью" : "Свернуть";
+    });
+
+    function applyFilters() {
+      const query = queryInput.value.trim().toLowerCase();
+      const region = regionSelect.value;
+      const year = yearSelect.value;
+
+      state.filtered = state.items.filter((item) => {
+        const regionMatch = !region || item.region === region;
+        const yearMatch = !year || String(item.commissioningYear) === year;
+        const queryMatch = !query || (item.searchText && item.searchText.includes(query));
+        return regionMatch && yearMatch && queryMatch;
+      });
+
+      summary.textContent = `Найдено: ${state.filtered.length} из ${state.items.length}`;
+      renderCards(state.filtered.slice(0, 250));
+    }
+
+    function initRegionOptions(regions) {
+      const options = [`<option value="">Все регионы</option>`];
+      for (const region of regions) {
+        options.push(`<option value="${region}">${region}</option>`);
+      }
+      regionSelect.innerHTML = options.join("");
+    }
+
+    function initYearOptions(years) {
+      const options = [`<option value="">Все годы ввода</option>`];
+      for (const year of years) {
+        options.push(`<option value="${year}">${year}</option>`);
+      }
+      yearSelect.innerHTML = options.join("");
+    }
+
+    async function init() {
+      try {
+        const data = await loadFromGoogleSheet();
+        state.items = data.items || [];
+        state.regions = data.regions || [];
+        state.years = data.years || [];
+        initRegionOptions(state.regions);
+        initYearOptions(state.years);
+        summary.textContent = `Загружено из Google Sheets: ${state.items.length} записей`;
+        applyFilters();
+      } catch (error) {
+        try {
+          const response = await fetch("./data.json");
+          const data = await response.json();
+          state.items = data.items || [];
+          state.regions = data.regions || [];
+          state.years = Array.from(new Set(state.items.map((x) => x.commissioningYear).filter((y) => y !== null && y !== undefined && y !== "")))
+            .sort((a, b) => Number(a) - Number(b));
+          initRegionOptions(state.regions);
+          initYearOptions(state.years);
+          summary.textContent = `Google Sheets недоступен, загружен локальный data.json: ${state.items.length} записей`;
+          applyFilters();
+        } catch (fallbackError) {
+          summary.textContent = "Ошибка загрузки данных";
+          results.innerHTML = `<div class="empty">Не удалось загрузить данные ни из Google Sheets, ни из data.json.</div>`;
+        }
+      }
+    }
+
+    queryInput.addEventListener("input", applyFilters);
+    regionSelect.addEventListener("change", applyFilters);
+    yearSelect.addEventListener("change", applyFilters);
+    init();
+  </script>
+</body>
+</html>
