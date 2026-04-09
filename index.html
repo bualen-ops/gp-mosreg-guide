@@ -41,13 +41,21 @@
       z-index: 10;
       box-shadow: 0 6px 16px rgba(22, 35, 59, 0.06);
     }
+    .filters-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .filters-grid .full {
+      grid-column: 1 / -1;
+    }
     input, select {
       width: 100%;
       font-size: 16px;
       padding: 10px;
       border-radius: 10px;
       border: 1px solid #c8d6ef;
-      margin-bottom: 8px;
+      margin-bottom: 0;
       background: #fff;
       color: var(--text);
     }
@@ -205,6 +213,12 @@
       text-align: center;
     }
     @media (min-width: 760px) {
+      .filters-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .filters-grid .full {
+        grid-column: 1 / -1;
+      }
       .toolbar .btn,
       .card-actions .btn {
         flex: 0 0 auto;
@@ -216,21 +230,23 @@
   <div class="wrap">
     <h1>Карманный справочник объектов</h1>
     <div class="controls">
-      <input id="queryInput" type="search" placeholder="Поиск по названию, типу, коду...">
-      <select id="regionSelect">
-        <option value="">Все регионы</option>
-      </select>
-      <select id="yearSelect">
-        <option value="">Все годы ввода</option>
-      </select>
-      <select id="objectTypeSelect">
-        <option value="">Все типы объекта</option>
-      </select>
-      <select id="contractedSelect">
-        <option value="">Законтрактовано: все</option>
-        <option value="yes">Только законтрактованные</option>
-        <option value="no">Только незаконтрактованные</option>
-      </select>
+      <div class="filters-grid">
+        <input id="queryInput" class="full" type="search" placeholder="Поиск по названию, типу, коду...">
+        <select id="regionSelect">
+          <option value="">Все регионы</option>
+        </select>
+        <select id="yearSelect">
+          <option value="">Все годы ввода</option>
+        </select>
+        <select id="objectTypeSelect">
+          <option value="">Все типы объекта</option>
+        </select>
+        <select id="contractedSelect">
+          <option value="">Законтрактовано: все</option>
+          <option value="yes">Только законтрактованные</option>
+          <option value="no">Только незаконтрактованные</option>
+        </select>
+      </div>
       <div class="toolbar">
         <button id="downloadSelectedBtn" type="button" class="btn primary" disabled>Скачать выбранную справку (.html)</button>
         <button id="downloadSelectedDocBtn" type="button" class="btn" disabled>Скачать .doc (legacy)</button>
