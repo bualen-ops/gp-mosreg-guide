@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Сводка по регионам — GP</title>
+  <style>
+    :root {
+      --bg: #eef3fb;
+      --card: #ffffff;
+      --text: #16233b;
+      --muted: #5a6b87;
+      --accent: #1f4fbf;
+      --line: #d7e1f1;
+      --header-bg: #f7faff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 12px; }
+    h1 { font-size: 20px; margin: 8px 0 6px; }
+    .nav { margin-bottom: 12px; font-size: 14px; }
+    .nav a { color: var(--accent); font-weight: 600; text-decoration: none; }
+    .nav a:hover { text-decoration: underline; }
+    .controls {
+      background: linear-gradient(180deg, var(--header-bg) 0%, #f3f7ff 100%);
+      border: 1px solid #c9d8f0;
+      border-radius: 14px;
+      padding: 12px;
+      margin-bottom: 12px;
+      box-shadow: 0 6px 16px rgba(22, 35, 59, 0.06);
+    }
+    .totals {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+    }
+    @media (min-width: 560px) {
+      .totals { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    }
+    .stat {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      text-align: center;
+    }
+    .stat .n { font-size: 20px; font-weight: 700; color: var(--accent); }
+    .stat .l { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 4px; }
+    .meta { color: var(--muted); font-size: 13px; margin-top: 8px; }
+    .region-card {
+      background: var(--card);
+      border: 1px solid #cfdbf0;
+      border-radius: 14px;
+      padding: 12px;
+      margin-top: 10px;
+      box-shadow: 0 4px 14px rgba(18, 39, 79, 0.08);
+    }
+    .region-title { font-weight: 700; font-size: 16px; margin-bottom: 8px; color: #1c3f7a; }
+    .bar-wrap { margin-top: 6px; }
+    .bar-label { font-size: 12px; color: var(--muted); margin-bottom: 2px; display: flex; justify-content: space-between; }
+    .bar {
+      height: 8px;
+      background: #e4ecf8;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .bar > span { display: block; height: 100%; background: linear-gradient(90deg, #3d7ae0, #1f4fbf); border-radius: 999px; }
+    .row-mini { font-size: 13px; color: var(--muted); margin-top: 6px; }
+    .empty {
+      text-align: center;
+      color: var(--muted);
+      padding: 24px;
+      border: 1px dashed #c8d6ef;
+      border-radius: 12px;
+      background: #fff;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Сводка по регионам</h1>
+    <p class="nav"><a href="index.html">← К справочнику объектов</a></p>
+    <div class="controls">
+      <div id="totals" class="totals"></div>
+      <div class="meta" id="status">Загрузка данных...</div>
+    </div>
+    <div id="regions"></div>
+  </div>
+
+  <script src="gp-shared.js"></script>
+  <script>
+    const { loadFromGoogleSheet, isContracted, normalizePercent } = window.GpGuide;
+
+    function pct(part, whole) {
+      if (!whole) return 0;
+      return Math.round((100 * part) / whole);
+    }
+
+    function render(items, statusNote) {
+      const status = document.getElementById("status");
+      const totalsEl = document.getElementById("totals");
+      const regionsEl = document.getElementById("regions");
+
+      const withRegion = items.filter((x) => x.region);
+      const total = withRegion.length;
+      const contracted = withRegion.filter((x) => isContracted(x.contractNumber)).length;
+      const withPct = withRegion.map((x) => normalizePercent(x.readinessPercent)).filter((n) => n !== null);
+      const avgReadiness = withPct.length
+        ? Math.round(withPct.reduce((a, b) => a + b, 0) / withPct.length)
+        : null;
+
+      totalsEl.innerHTML = `
+        <div class="stat"><div class="n">${total}</div><div class="l">Объектов с регионом</div></div>
+        <div class="stat"><div class="n">${contracted}</div><div class="l">Законтрактовано</div></div>
+        <div class="stat"><div class="n">${pct(contracted, total)}%</div><div class="l">Доля законтракт.</div></div>
+        <div class="stat"><div class="n">${avgReadiness !== null ? `${avgReadiness}%` : "—"}</div><div class="l">Средняя готовность</div></div>
+      `;
+
+      const byRegion = new Map();
+      for (const it of withRegion) {
+        const r = it.region;
+        if (!byRegion.has(r)) {
+          byRegion.set(r, { items: [], contracted: 0, readiness: [] });
+        }
+        const g = byRegion.get(r);
+        g.items.push(it);
+        if (isContracted(it.contractNumber)) g.contracted += 1;
+        const p = normalizePercent(it.readinessPercent);
+        if (p !== null) g.readiness.push(p);
+      }
+
+      const sorted = [...byRegion.entries()].sort((a, b) => b[1].items.length - a[1].items.length);
+
+      if (!sorted.length) {
+        regionsEl.innerHTML = `<div class="empty">Нет данных по регионам.</div>`;
+        status.textContent = statusNote || `Загружено записей: ${items.length}`;
+        return;
+      }
+
+      regionsEl.innerHTML = sorted.map(([name, g]) => {
+        const n = g.items.length;
+        const c = g.contracted;
+        const cp = pct(c, n);
+        const avg = g.readiness.length
+          ? Math.round(g.readiness.reduce((a, b) => a + b, 0) / g.readiness.length)
+          : null;
+        return `
+          <article class="region-card">
+            <div class="region-title">${escapeHtml(name)}</div>
+            <div class="row-mini">Объектов: <b>${n}</b> · Законтрактовано: <b>${c}</b> (${cp}%)</div>
+            <div class="bar-wrap">
+              <div class="bar-label"><span>Законтрактованность</span><span>${cp}%</span></div>
+              <div class="bar"><span style="width:${cp}%"></span></div>
+            </div>
+            <div class="bar-wrap">
+              <div class="bar-label"><span>Средняя готовность</span><span>${avg !== null ? `${avg}%` : "н/д"}</span></div>
+              <div class="bar"><span style="width:${avg !== null ? avg : 0}%"></span></div>
+            </div>
+          </article>
+        `;
+      }).join("");
+
+      status.textContent =
+        statusNote
+        || `Источник: Google Sheets · Всего записей в справочнике: ${items.length} · Регионов: ${sorted.length}`;
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll("\"", "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    async function init() {
+      const status = document.getElementById("status");
+      try {
+        const data = await loadFromGoogleSheet();
+        render(data.items || [], null);
+      } catch (e) {
+        try {
+          const response = await fetch("./data.json");
+          const data = await response.json();
+          const items = data.items || [];
+          render(
+            items,
+            `Google Sheets недоступен, данные из data.json · ${items.length} записей`,
+          );
+        } catch (e2) {
+          status.textContent = "Ошибка загрузки";
+          document.getElementById("regions").innerHTML = `<div class="empty">Не удалось загрузить данные.</div>`;
+        }
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

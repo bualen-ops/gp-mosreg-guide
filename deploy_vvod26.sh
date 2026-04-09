@@ -20,6 +20,8 @@ test -f "index.html"
 echo "==> Upload static files"
 ssh "$SSH_HOST" "mkdir -p \"$REMOTE_DIR\""
 scp "index.html" "$SSH_HOST:$REMOTE_DIR/index.html"
+scp "gp-shared.js" "$SSH_HOST:$REMOTE_DIR/gp-shared.js"
+scp "dashboard.html" "$SSH_HOST:$REMOTE_DIR/dashboard.html"
 
 # data.json is optional now because primary source is Google Sheets.
 if [[ -f "data.json" ]]; then
