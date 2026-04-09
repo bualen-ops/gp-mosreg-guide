@@ -198,6 +198,18 @@
       gap: 8px;
       flex-wrap: wrap;
     }
+    .toolbar .btn,
+    .card-actions .btn {
+      flex: 1 1 calc(50% - 4px);
+      min-width: 0;
+      text-align: center;
+    }
+    @media (min-width: 760px) {
+      .toolbar .btn,
+      .card-actions .btn {
+        flex: 0 0 auto;
+      }
+    }
   </style>
 </head>
 <body>
