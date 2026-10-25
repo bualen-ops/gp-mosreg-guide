@@ -260,7 +260,7 @@
 
   async function loadFromAccent() {
     // Prefer deep passport DB built from Accent cards; fall back to compact snapshot.
-    const urls = ["./accent-db.json?v=20261026a", "./accent-objects.json?v=20261026a"];
+    const urls = ["./accent-db.json?v=20261026b", "./accent-objects.json?v=20261026b"];
     let json = null;
     let used = "";
     for (const url of urls) {

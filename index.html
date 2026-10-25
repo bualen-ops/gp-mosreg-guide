@@ -114,6 +114,27 @@
       background: #eef2f6;
       border-color: #cfd8e3;
     }
+    .chip-warn {
+      color: #9a1b1b;
+      background: #ffe8e8;
+      border-color: #f0b4b4;
+    }
+    .chip-ok {
+      color: #0f6a2e;
+      background: #e9f9ee;
+      border-color: #9be2b1;
+    }
+    .chip-muted {
+      color: #334155;
+      background: #f1f5f9;
+      border-color: #cbd5e1;
+    }
+    a.field-link {
+      color: #1d4ed8;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      word-break: break-all;
+    }
     .row {
       margin-top: 4px;
       font-size: 14px;
@@ -231,7 +252,7 @@
   <script src="gp-ui.js"></script>
   <div class="wrap">
     <h1 class="gp-page-title">Справочник объектов</h1>
-    <p class="gp-page-desc">Поиск по реестру объектов, карточка, экспорт справки.</p>
+    <p class="gp-page-desc">Данные из Акцента (реестр ГП, МинЖКХ · наличие в АП ГП). Карточка и справка — только заполненные поля.</p>
     <div class="controls">
       <div class="filters-grid">
         <input id="queryInput" class="full" type="search" placeholder="Поиск по названию, типу, коду...">
@@ -260,7 +281,7 @@
     <div id="results"></div>
   </div>
 
-  <script src="gp-shared.js?v=20261026a"></script>
+  <script src="gp-shared.js?v=20261026b"></script>
   <script src="lib/docx.iife.js"></script>
   <script src="gp-docx-export.js"></script>
   <script>
@@ -300,14 +321,15 @@
       return escapeHtml(v);
     }
 
+    function hasValue(value) {
+      return !(value === null || value === undefined || String(value).trim() === "");
+    }
+
     function createField(label, value, options = {}) {
-      const text = value === null || value === undefined ? "" : String(value);
+      if (!hasValue(value)) return "";
+      const text = String(value);
       const collapsible = Boolean(options.collapsible);
       const maxLength = options.maxLength || 140;
-
-      if (!text.trim()) {
-        return `<div class="row"><span class="k">${label}:</span>—</div>`;
-      }
 
       if (collapsible && text.length > maxLength) {
         const shortText = `${escapeHtml(text.slice(0, maxLength).trim())}...`;
@@ -318,44 +340,57 @@
       return `<div class="row"><span class="k">${label}:</span>${escapeHtml(text)}</div>`;
     }
 
+    function createLinkField(label, url, linkText) {
+      if (!hasValue(url)) return "";
+      const href = escapeHtml(String(url));
+      const text = escapeHtml(linkText || String(url));
+      return `<div class="row"><span class="k">${label}:</span><a class="field-link" href="${href}" target="_blank" rel="noopener noreferrer">${text}</a></div>`;
+    }
+
+    function createSection(title, bodyHtml) {
+      if (!String(bodyHtml || "").trim()) return "";
+      return `<div class="section"><div class="section-title">${title}</div>${bodyHtml}</div>`;
+    }
+
+    function chip(text, cls = "") {
+      if (!hasValue(text) || text === "—") return "";
+      return `<span class="chip ${cls}">${safe(text)}</span>`;
+    }
+
     function getReportRows(item) {
-      return [
+      const rows = [
         ["Наименование объекта", item.objectName],
         ["ОМСУ", item.region],
         ["Адрес", item.address],
         ["УИН", item.eventCode],
+        ["Заказчик", item.customer],
+        ["Форма собственности", item.ownership],
         ["Тип объекта", item.objectType],
+        ["Направление", item.direction],
         ["Вид работ", item.workType],
-        ["Вид работ (этап)", item.workKind],
-        ["Вводные / категории", item.intro],
+        ["Этап работ", item.workKind],
+        ["Категории АП ГП", item.categories || item.intro],
+        ["Классификатор", item.classifierCode],
         ["Статус по графику", item.statusName],
         ["Статус объекта", item.objectStatus],
         ["Особый контроль", item.specialControl],
         ["Срок реализации", item.timeline],
         ["Год ввода", item.commissioningYear],
         ["Готовность (%)", item.readinessPercent],
-        ["Перенос срока", item.deadlineShift],
+        ["РП", item.managerFull || item.extraManager],
         ["Комментарий РП", item.managerComment],
-        ["Комментарий (доп. источник)", item.extraComment],
-        ["№ контракта", item.contractNumber],
-        ["Ссылка на контракт", item.contractUrl],
-        ["Дата заключения контракта", item.contractSignedAt],
+        ["Контракт / закупка", item.contractNumber],
+        ["ЕАСУЗ", item.easuzUrl || item.contractUrl],
+        ["ПИК", item.pikUrl],
+        ["Карточка в реестре", item.registryUrl],
+        ["Технадзор", item.tehnadzorUrl],
         ["Подрядчик", item.contractor],
-        ["РП", item.extraManager],
-        ["Наличие ПСД", item.psdAvailability],
-        ["Наличие МОГЭ", item.mogeAvailability],
-        ["План. дата выхода из МОГЭ", item.mogePlannedDate],
-        ["№ МОГЭ", item.mogePositiveNumber],
-        ["Сметная стоимость", item.estimateByMoge],
-        ["в т.ч. ПИР", item.pirPart],
-        ["Лимит (тыс. руб.)", item.limit2025to2028],
-        ["Итого 2026", item.total2026],
+        ["Лимит финансирования", item.limit2025to2028],
         ["Источник финансирования", item.subsidy],
-        ["Фед. субсидия", item.federalSubsidy],
-        ["Охват", item.coverage],
-        ["Мощность (куб.м./сут)", item.capacityPerDay],
-        ["Протяженность (м)", item.lengthMeters],
+        ["Мощность", item.capacityLabel || item.capacityPerDay],
+        ["Обновлено в Акценте", item.updateDate],
       ];
+      return rows.filter(([, v]) => hasValue(v));
     }
 
     function createDocRows(item) {
@@ -439,73 +474,74 @@
         return;
       }
 
-      results.innerHTML = items.map((it) => `
+      results.innerHTML = items.map((it) => {
+        const statusCls = /особ|риск|срыв|отста/i.test(String(it.specialControl || it.statusName || ""))
+          ? "chip-warn"
+          : /график/i.test(String(it.statusName || ""))
+            ? "chip-ok"
+            : "chip-muted";
+        const objectBody = [
+          createField("Адрес", it.address, { collapsible: true }),
+          createField("УИН", it.eventCode),
+          createField("Заказчик", it.customer),
+          createField("Форма собственности", it.ownership),
+          createField("Направление", it.direction),
+          createField("Вид работ", it.workType, { collapsible: true }),
+          createField("Этап работ", it.workKind),
+          createField("Категории АП ГП", it.categories || it.intro, { collapsible: true }),
+          createField("Классификатор", it.classifierCode),
+        ].join("");
+        const statusBody = [
+          createField("Статус по графику", it.statusName),
+          createField("Статус объекта", it.objectStatus),
+          createField("Особый контроль", it.specialControl),
+          createField("Готовность (%)", it.readinessPercent),
+          createField("Срок реализации", it.timeline),
+          createField("Год ввода", it.commissioningYear),
+        ].join("");
+        const peopleBody = [
+          createField("РП", it.managerFull || it.extraManager),
+          createField("Комментарий РП", it.managerComment, { collapsible: true, maxLength: 180 }),
+        ].join("");
+        const contractBody = [
+          createField("Контракт / закупка", it.contractNumber),
+          createLinkField("ЕАСУЗ", it.easuzUrl || (!it.pikUrl ? it.contractUrl : null), it.contractNumber || "Открыть"),
+          createLinkField("ПИК", it.pikUrl, "График исполнения"),
+          createField("Подрядчик", it.contractor, { collapsible: true, maxLength: 180 }),
+          createLinkField("Карточка в реестре", it.registryUrl, "Открыть в МБС"),
+          createLinkField("Технадзор", it.tehnadzorUrl, "Открыть задачу"),
+        ].join("");
+        const financeBody = [
+          createField("Лимит финансирования", it.limit2025to2028),
+          createField("Источник финансирования", it.subsidy),
+          createField("Мощность", it.capacityLabel || it.capacityPerDay),
+        ].join("");
+
+        return `
         <article class="card ${state.selectedObjectKey === normalizeObjectKey(it.objectName) ? "selected" : ""}" data-object-key="${normalizeObjectKey(it.objectName)}">
           <div class="title">${safe(it.objectName)}</div>
           <div>
-            <span class="chip">${safe(it.region)}</span>
-            <span class="chip">${safe(it.objectType)}</span>
+            ${chip(it.region)}
+            ${chip(it.objectType)}
+            ${chip(it.workKind, "chip-muted")}
+            ${chip(it.statusName, statusCls)}
+            ${chip(it.specialControl, "chip-warn")}
             ${progressChip(it.readinessPercent)}
           </div>
-          <div class="section">
-            <div class="section-title">Статус</div>
-            ${createField("Готовность (%)", it.readinessPercent)}
-            ${createField("Статус по графику", it.statusName)}
-            ${createField("Особый контроль", it.specialControl)}
-            ${createField("Срок реализации", it.timeline)}
-            ${createField("Год ввода", it.commissioningYear)}
-          </div>
-
-          <div class="section">
-            <div class="section-title">Комментарий</div>
-            ${createField("Комментарий РП", it.managerComment, { collapsible: true, maxLength: 180 })}
-            ${createField("Комментарий (доп. источник)", it.extraComment, { collapsible: true, maxLength: 180 })}
-          </div>
-
-          <div class="section">
-            <div class="section-title">Профиль объекта</div>
-            ${createField("Адрес", it.address, { collapsible: true })}
-            ${createField("УИН", it.eventCode)}
-            ${createField("Вид работ", it.workType, { collapsible: true })}
-            ${createField("Вид работ (этап)", it.workKind)}
-            ${createField("Категории", it.intro, { collapsible: true })}
-          </div>
-
-          <div class="section">
-            <div class="section-title">Контракт</div>
-            ${createField("№ контракта", it.contractNumber)}
-            ${createField("Дата заключения контракта", it.contractSignedAt)}
-            ${createField("Подрядчик", it.contractor, { collapsible: true, maxLength: 180 })}
-            ${createField("РП", it.extraManager)}
-          </div>
-
-          <div class="section">
-            <div class="section-title">Экспертиза</div>
-            ${createField("Наличие ПСД", it.psdAvailability)}
-            ${createField("Наличие МОГЭ", it.mogeAvailability)}
-            ${createField("План. дата выхода из МОГЭ", it.mogePlannedDate)}
-            ${createField("№ МОГЭ", it.mogePositiveNumber)}
-          </div>
-
-          <div class="section">
-            <div class="section-title">Финансы и показатели</div>
-            ${createField("Сметная стоимость", it.estimateByMoge)}
-            ${createField("в т.ч. ПИР", it.pirPart)}
-            ${createField("Лимит (тыс. руб.)", it.limit2025to2028)}
-            ${createField("Итого 2026", it.total2026)}
-            ${createField("Источник финансирования", it.subsidy)}
-            ${createField("Фед. субсидия", it.federalSubsidy)}
-            ${createField("Охват", it.coverage)}
-            ${createField("Мощность (куб.м./сут)", it.capacityPerDay)}
-            ${createField("Протяженность (м)", it.lengthMeters)}
-          </div>
+          ${createSection("Объект", objectBody)}
+          ${createSection("Статус и сроки", statusBody)}
+          ${createSection("Ответственные", peopleBody)}
+          ${createSection("Контракт и ссылки", contractBody)}
+          ${createSection("Финансы и показатели", financeBody)}
+          ${hasValue(it.updateDate) ? `<div class="row" style="margin-top:8px;color:#64748b;font-size:12px;">Обновлено в Акценте: ${safe(it.updateDate)}</div>` : ""}
           <div class="card-actions">
             <button type="button" class="btn" data-action="select-card" data-object-key="${normalizeObjectKey(it.objectName)}">Выбрать объект</button>
             <button type="button" class="btn primary" data-action="download-card" data-object-key="${normalizeObjectKey(it.objectName)}">Скачать справку (.html)</button>
             <button type="button" class="btn" data-action="download-card-doc" data-object-key="${normalizeObjectKey(it.objectName)}">.docx</button>
           </div>
         </article>
-      `).join("");
+      `;
+      }).join("");
     }
 
     results.addEventListener("click", (event) => {
