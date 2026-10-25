@@ -262,7 +262,7 @@
 
   <script src="gp-shared.js"></script>
   <script>
-    const { loadFromGoogleSheet, isContracted, normalizeObjectKey, normalizePercent } = window.GpGuide;
+    const { loadFromAccent, loadFromGoogleSheet, isContracted, normalizeObjectKey, normalizePercent } = window.GpGuide;
 
     const state = {
       items: [],
@@ -578,7 +578,7 @@
     async function init() {
       state.selectedObjectKey = localStorage.getItem("pocketGuideSelectedObjectKey") || "";
       try {
-        const data = await loadFromGoogleSheet();
+        const data = await loadFromAccent();
         state.items = data.items || [];
         state.regions = data.regions || [];
         state.years = data.years || [];
@@ -588,7 +588,7 @@
         initRegionOptions(state.regions);
         initYearOptions(state.years);
         initObjectTypeOptions(state.objectTypes);
-        summary.textContent = `Загружено из Google Sheets: ${state.items.length} записей`;
+        summary.textContent = `Акцент${data.updatedAt ? " · " + data.updatedAt : ""}: ${state.items.length} записей`;
         applyFilters();
         updateSelectedMeta();
       } catch (error) {

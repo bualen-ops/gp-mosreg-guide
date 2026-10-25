@@ -184,8 +184,84 @@
     return record;
   }
 
+  async function fetchWithTimeout(url, timeoutMs = 15000) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      return await fetch(url, { cache: "no-store", signal: ctrl.signal });
+    } catch (e) {
+      if (e && e.name === "AbortError") {
+        throw new Error(`Таймаут загрузки (${Math.round(timeoutMs / 1000)} с): ${url}`);
+      }
+      throw e;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  function mapAccentObject(it) {
+    const objectName = normalizeValue(it.name);
+    if (!objectName) return null;
+    const region = it.region && it.region !== "—" ? normalizeRegion(it.region) : null;
+    const direction = it.direction && it.direction !== "—" ? normalizeValue(it.direction) : null;
+    const rp = it.rp && it.rp !== "не назначен" ? normalizeValue(it.rp) : null;
+    const limit = Number(it.limitThs);
+    const record = {
+      objectName,
+      region,
+      direction,
+      workType: normalizeValue(it.workType),
+      objectType: normalizeValue(it.objectType),
+      intro: it.movk ? "Мособлводоканал" : normalizeValue(it.categories),
+      timeline: normalizeValue(it.timeline),
+      commissioningYear: normalizeCommissioningYear(it.year),
+      readinessPercent: it.progress == null || it.progress === "" ? null : normalizePercent(it.progress),
+      managerComment: normalizeValue(it.comment),
+      contractNumber: normalizeContractNumber(it.contractNumber),
+      contractor: normalizeContractor(it.contractor),
+      extraManager: rp,
+      mogeAvailability: normalizeValue(it.moge),
+      limit2025to2028: Number.isFinite(limit) ? `${Math.round(limit).toLocaleString("ru-RU")} тыс. руб.` : null,
+      eventCode: normalizeValue(it.uin),
+      subsidy: it.movk ? "Мособлводоканал" : null,
+    };
+    record.searchText = [
+      record.region,
+      record.objectName,
+      record.workType,
+      record.objectType,
+      record.contractNumber,
+      record.contractor,
+      record.eventCode,
+      record.extraManager,
+      record.intro,
+    ].filter(Boolean).join(" ").toLowerCase();
+    return record;
+  }
+
+  async function loadFromAccent() {
+    const response = await fetchWithTimeout("./accent-objects.json", 20000);
+    if (!response.ok) {
+      throw new Error(`Accent HTTP ${response.status}`);
+    }
+    const json = await response.json();
+    const items = (json.objects || json.items || []).map(mapAccentObject).filter(Boolean);
+    if (!items.length) {
+      throw new Error("Accent: пустой реестр");
+    }
+    return {
+      source: "Акцент · МинЖКХ, наличие в АП ГП",
+      updatedAt: json.updatedAt || "",
+      items,
+      regions: Array.from(new Set(items.map((x) => x.region).filter(Boolean))).sort(),
+      years: Array.from(
+        new Set(items.map((x) => x.commissioningYear).filter((y) => y !== null && y !== undefined && y !== "")),
+      ).sort((a, b) => Number(a) - Number(b)),
+    };
+  }
+
   async function loadFromGoogleSheet() {
-    const response = await fetch(GOOGLE_SHEET_CSV_URL, { cache: "no-store" });
+    const response = await fetchWithTimeout(GOOGLE_SHEET_CSV_URL);
     if (!response.ok) {
       throw new Error(`Google Sheets HTTP ${response.status}`);
     }
@@ -227,7 +303,7 @@
     }
 
     try {
-      const extraResponse = await fetch(GOOGLE_SHEET_EXTRA_CSV_URL, { cache: "no-store" });
+      const extraResponse = await fetchWithTimeout(GOOGLE_SHEET_EXTRA_CSV_URL, 10000);
       if (extraResponse.ok) {
         const extraCsvText = await extraResponse.text();
         const extraTable = parseCSV(extraCsvText);
@@ -274,6 +350,7 @@
   }
 
   window.GpGuide = {
+    loadFromAccent,
     loadFromGoogleSheet,
     isContracted,
     normalizeObjectKey,
