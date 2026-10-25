@@ -547,7 +547,7 @@
         return regionMatch && yearMatch && typeMatch && contractedMatch && queryMatch;
       });
 
-      summary.textContent = `Найдено: ${state.filtered.length} из ${state.items.length}`;
+      summary.textContent = `Акцент: найдено ${state.filtered.length} из ${state.items.length}`;
       renderCards(state.filtered.slice(0, 250));
     }
 
