@@ -206,24 +206,43 @@
     const direction = it.direction && it.direction !== "—" ? normalizeValue(it.direction) : null;
     const rp = it.rp && it.rp !== "не назначен" ? normalizeValue(it.rp) : null;
     const limit = Number(it.limitThs);
+    const sheetContract = normalizeContractNumber(it.sheetContract);
+    const accentContract = normalizeContractNumber(it.contractNumber);
+    const contractNumber = sheetContract || accentContract;
+    const accentMoge = it.moge && it.moge !== "Не в МОГЭ" ? normalizeValue(it.moge) : null;
     const record = {
       objectName,
       region,
       direction,
       workType: normalizeValue(it.workType),
       objectType: normalizeValue(it.objectType),
-      intro: it.movk ? "Мособлводоканал" : normalizeValue(it.categories),
+      intro: it.movk ? "Мособлводоканал" : (normalizeValue(it.intro) || normalizeValue(it.categories) || direction),
       timeline: normalizeValue(it.timeline),
       commissioningYear: normalizeCommissioningYear(it.year),
-      readinessPercent: it.progress == null || it.progress === "" ? null : normalizePercent(it.progress),
-      managerComment: normalizeValue(it.comment),
-      contractNumber: normalizeContractNumber(it.contractNumber),
-      contractor: normalizeContractor(it.contractor),
-      extraManager: rp,
-      mogeAvailability: normalizeValue(it.moge),
-      limit2025to2028: Number.isFinite(limit) ? `${Math.round(limit).toLocaleString("ru-RU")} тыс. руб.` : null,
+      readinessPercent: it.progress == null || it.progress === ""
+        ? normalizePercent(it.readinessPercent)
+        : normalizePercent(it.progress),
+      deadlineShift: normalizeValue(it.deadlineShift),
+      managerComment: normalizeValue(it.comment) || normalizeValue(it.managerComment),
+      extraComment: normalizeValue(it.extraComment),
+      contractNumber,
+      contractSignedAt: normalizeValue(it.contractSignedAt),
+      contractor: normalizeContractor(it.contractor) || normalizeContractor(it.sheetContractor),
+      extraManager: rp || normalizeValue(it.sheetManager),
+      psdAvailability: normalizeValue(it.psdAvailability),
+      mogeAvailability: normalizeValue(it.mogeAvailability) || accentMoge,
+      mogePlannedDate: normalizeValue(it.mogePlannedDate),
+      mogePositiveNumber: normalizeValue(it.mogePositiveNumber),
+      estimateByMoge: normalizeValue(it.estimateByMoge),
+      pirPart: normalizeValue(it.pirPart),
+      limit2025to2028: Number.isFinite(limit) ? `${Math.round(limit).toLocaleString("ru-RU")} тыс. руб.` : normalizeValue(it.sheetLimit),
+      total2026: normalizeValue(it.total2026),
+      subsidy: it.movk ? "Мособлводоканал" : normalizeValue(it.subsidy),
+      federalSubsidy: normalizeValue(it.federalSubsidy),
+      coverage: normalizeValue(it.coverage),
+      capacityPerDay: normalizeValue(it.capacityPerDay),
+      lengthMeters: normalizeValue(it.lengthMeters),
       eventCode: normalizeValue(it.uin),
-      subsidy: it.movk ? "Мособлводоканал" : null,
     };
     record.searchText = [
       record.region,
