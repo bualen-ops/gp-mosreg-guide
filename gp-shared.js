@@ -259,7 +259,7 @@
   }
 
   async function loadFromAccent() {
-    const response = await fetchWithTimeout("./accent-objects.json", 20000);
+    const response = await fetchWithTimeout("./accent-objects.json?v=20261026", 20000);
     if (!response.ok) {
       throw new Error(`Accent HTTP ${response.status}`);
     }
