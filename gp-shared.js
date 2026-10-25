@@ -259,21 +259,60 @@
   }
 
   async function loadFromAccent() {
-    const response = await fetchWithTimeout("./accent-objects.json?v=20261026", 20000);
-    if (!response.ok) {
-      throw new Error(`Accent HTTP ${response.status}`);
+    // Prefer deep passport DB built from Accent cards; fall back to compact snapshot.
+    const urls = ["./accent-db.json?v=20261026a", "./accent-objects.json?v=20261026a"];
+    let json = null;
+    let used = "";
+    for (const url of urls) {
+      try {
+        const response = await fetchWithTimeout(url, 20000);
+        if (!response.ok) continue;
+        json = await response.json();
+        used = url;
+        break;
+      } catch (e) {
+        /* try next */
+      }
     }
-    const json = await response.json();
-    const items = (json.objects || json.items || []).map(mapAccentObject).filter(Boolean);
-    if (!items.length) {
-      throw new Error("Accent: пустой реестр");
-    }
+    if (!json) throw new Error("Accent DB недоступна");
+
+    const rawItems = json.items || json.objects || [];
+    const items = rawItems
+      .map((it) => {
+        // accent-db items are already in handbook shape
+        if (it.objectName) {
+          const record = { ...it };
+          record.contractNumber = normalizeContractNumber(record.contractNumber);
+          record.contractor = normalizeContractor(record.contractor);
+          if (!record.searchText) {
+            record.searchText = [
+              record.region,
+              record.objectName,
+              record.address,
+              record.workType,
+              record.objectType,
+              record.contractNumber,
+              record.contractor,
+              record.eventCode,
+              record.extraManager,
+              record.managerComment,
+            ].filter(Boolean).join(" ").toLowerCase();
+          }
+          return record.objectName ? record : null;
+        }
+        return mapAccentObject(it);
+      })
+      .filter(Boolean);
+
+    if (!items.length) throw new Error("Accent: пустой реестр");
+
     return {
-      source: "Акцент · МинЖКХ, наличие в АП ГП",
+      source: json.source || "Акцент · глубокие карточки",
       updatedAt: json.updatedAt || "",
+      used,
       items,
-      regions: Array.from(new Set(items.map((x) => x.region).filter(Boolean))).sort(),
-      years: Array.from(
+      regions: json.regions || Array.from(new Set(items.map((x) => x.region).filter(Boolean))).sort(),
+      years: json.years || Array.from(
         new Set(items.map((x) => x.commissioningYear).filter((y) => y !== null && y !== undefined && y !== "")),
       ).sort((a, b) => Number(a) - Number(b)),
     };

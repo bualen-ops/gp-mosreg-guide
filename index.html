@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Карманный справочник объектов</title>
+  <title>Справочник объектов — штабы проектного офиса</title>
+  <link rel="stylesheet" href="gp-ui.css">
   <style>
     :root {
       --bg: #eef3fb;
@@ -226,12 +227,11 @@
     }
   </style>
 </head>
-<body>
+<body data-gp-page="handbook" data-gp-width="narrow">
+  <script src="gp-ui.js"></script>
   <div class="wrap">
-    <h1>Карманный справочник объектов</h1>
-    <p class="meta" style="margin-top:-4px;margin-bottom:8px;">
-      <a href="dashboard.html" style="color:#1f4fbf;font-weight:600;">Сводка по регионам →</a>
-    </p>
+    <h1 class="gp-page-title">Справочник объектов</h1>
+    <p class="gp-page-desc">Поиск по реестру объектов, карточка, экспорт справки.</p>
     <div class="controls">
       <div class="filters-grid">
         <input id="queryInput" class="full" type="search" placeholder="Поиск по названию, типу, коду...">
@@ -252,7 +252,7 @@
       </div>
       <div class="toolbar">
         <button id="downloadSelectedBtn" type="button" class="btn primary" disabled>Скачать выбранную справку (.html)</button>
-        <button id="downloadSelectedDocBtn" type="button" class="btn" disabled>Скачать .doc (legacy)</button>
+        <button id="downloadSelectedDocBtn" type="button" class="btn" disabled>Скачать .docx</button>
       </div>
       <div class="selected-meta" id="selectedMeta">Объект не выбран</div>
       <div class="meta" id="summary">Загрузка данных...</div>
@@ -260,7 +260,9 @@
     <div id="results"></div>
   </div>
 
-  <script src="gp-shared.js?v=20261026"></script>
+  <script src="gp-shared.js?v=20261026a"></script>
+  <script src="lib/docx.iife.js"></script>
+  <script src="gp-docx-export.js"></script>
   <script>
     const { loadFromAccent, loadFromGoogleSheet, isContracted, normalizeObjectKey, normalizePercent } = window.GpGuide;
 
@@ -316,13 +318,19 @@
       return `<div class="row"><span class="k">${label}:</span>${escapeHtml(text)}</div>`;
     }
 
-    function createDocRows(item) {
-      const rows = [
+    function getReportRows(item) {
+      return [
         ["Наименование объекта", item.objectName],
         ["ОМСУ", item.region],
+        ["Адрес", item.address],
+        ["УИН", item.eventCode],
         ["Тип объекта", item.objectType],
         ["Вид работ", item.workType],
-        ["Вводные", item.intro],
+        ["Вид работ (этап)", item.workKind],
+        ["Вводные / категории", item.intro],
+        ["Статус по графику", item.statusName],
+        ["Статус объекта", item.objectStatus],
+        ["Особый контроль", item.specialControl],
         ["Срок реализации", item.timeline],
         ["Год ввода", item.commissioningYear],
         ["Готовность (%)", item.readinessPercent],
@@ -330,25 +338,28 @@
         ["Комментарий РП", item.managerComment],
         ["Комментарий (доп. источник)", item.extraComment],
         ["№ контракта", item.contractNumber],
+        ["Ссылка на контракт", item.contractUrl],
         ["Дата заключения контракта", item.contractSignedAt],
         ["Подрядчик", item.contractor],
-        ["РП (доп. источник)", item.extraManager],
+        ["РП", item.extraManager],
         ["Наличие ПСД", item.psdAvailability],
         ["Наличие МОГЭ", item.mogeAvailability],
         ["План. дата выхода из МОГЭ", item.mogePlannedDate],
         ["№ МОГЭ", item.mogePositiveNumber],
         ["Сметная стоимость", item.estimateByMoge],
         ["в т.ч. ПИР", item.pirPart],
-        ["Лимит 2025-2028", item.limit2025to2028],
+        ["Лимит (тыс. руб.)", item.limit2025to2028],
         ["Итого 2026", item.total2026],
-        ["Субсидия", item.subsidy],
+        ["Источник финансирования", item.subsidy],
         ["Фед. субсидия", item.federalSubsidy],
         ["Охват", item.coverage],
         ["Мощность (куб.м./сут)", item.capacityPerDay],
         ["Протяженность (м)", item.lengthMeters],
       ];
+    }
 
-      return rows
+    function createDocRows(item) {
+      return getReportRows(item)
         .map(([k, v]) => `<tr><td style="padding:6px 8px;border:1px solid #cfd8e3;background:#f7f9fe;"><b>${escapeHtml(k)}</b></td><td style="padding:6px 8px;border:1px solid #cfd8e3;">${safe(v)}</td></tr>`)
         .join("");
     }
@@ -376,23 +387,23 @@
       URL.revokeObjectURL(url);
     }
 
-    function downloadDocForItem(item) {
+    async function downloadDocxForItem(item) {
       if (!item) return;
-      const fileNameBase = String(item.objectName || "spravka")
-        .replace(/[\\/:*?"<>|]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 80);
-      const html = buildReportHtml(item);
-      const blob = new Blob(["\ufeff", html], { type: "application/msword" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${fileNameBase || "spravka"}.doc`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      if (!window.GpDocxExport) {
+        alert("Модуль .docx не загружен. Обновите страницу.");
+        return;
+      }
+      const fileNameBase = GpDocxExport.safeName(item.objectName, "spravka");
+      try {
+        await GpDocxExport.downloadKeyValueReport({
+          title: "Справка по объекту",
+          subtitle: `Дата формирования: ${new Date().toLocaleString("ru-RU")}`,
+          rows: getReportRows(item),
+          fileName: `${fileNameBase}.docx`,
+        });
+      } catch (e) {
+        alert("Не удалось сохранить .docx: " + (e.message || e));
+      }
     }
 
     function updateSelectedMeta() {
@@ -439,7 +450,8 @@
           <div class="section">
             <div class="section-title">Статус</div>
             ${createField("Готовность (%)", it.readinessPercent)}
-            ${createField("Перенос срока", it.deadlineShift)}
+            ${createField("Статус по графику", it.statusName)}
+            ${createField("Особый контроль", it.specialControl)}
             ${createField("Срок реализации", it.timeline)}
             ${createField("Год ввода", it.commissioningYear)}
           </div>
@@ -452,8 +464,11 @@
 
           <div class="section">
             <div class="section-title">Профиль объекта</div>
+            ${createField("Адрес", it.address, { collapsible: true })}
+            ${createField("УИН", it.eventCode)}
             ${createField("Вид работ", it.workType, { collapsible: true })}
-            ${createField("Вводные", it.intro, { collapsible: true })}
+            ${createField("Вид работ (этап)", it.workKind)}
+            ${createField("Категории", it.intro, { collapsible: true })}
           </div>
 
           <div class="section">
@@ -461,7 +476,7 @@
             ${createField("№ контракта", it.contractNumber)}
             ${createField("Дата заключения контракта", it.contractSignedAt)}
             ${createField("Подрядчик", it.contractor, { collapsible: true, maxLength: 180 })}
-            ${createField("РП (доп. источник)", it.extraManager)}
+            ${createField("РП", it.extraManager)}
           </div>
 
           <div class="section">
@@ -476,9 +491,9 @@
             <div class="section-title">Финансы и показатели</div>
             ${createField("Сметная стоимость", it.estimateByMoge)}
             ${createField("в т.ч. ПИР", it.pirPart)}
-            ${createField("Лимит 2025-2028", it.limit2025to2028)}
+            ${createField("Лимит (тыс. руб.)", it.limit2025to2028)}
             ${createField("Итого 2026", it.total2026)}
-            ${createField("Субсидия", it.subsidy)}
+            ${createField("Источник финансирования", it.subsidy)}
             ${createField("Фед. субсидия", it.federalSubsidy)}
             ${createField("Охват", it.coverage)}
             ${createField("Мощность (куб.м./сут)", it.capacityPerDay)}
@@ -487,7 +502,7 @@
           <div class="card-actions">
             <button type="button" class="btn" data-action="select-card" data-object-key="${normalizeObjectKey(it.objectName)}">Выбрать объект</button>
             <button type="button" class="btn primary" data-action="download-card" data-object-key="${normalizeObjectKey(it.objectName)}">Скачать справку (.html)</button>
-            <button type="button" class="btn" data-action="download-card-doc" data-object-key="${normalizeObjectKey(it.objectName)}">.doc (legacy)</button>
+            <button type="button" class="btn" data-action="download-card-doc" data-object-key="${normalizeObjectKey(it.objectName)}">.docx</button>
           </div>
         </article>
       `).join("");
@@ -525,7 +540,7 @@
         state.selectedObjectKey = objectKey;
         localStorage.setItem("pocketGuideSelectedObjectKey", objectKey);
         updateSelectedMeta();
-        downloadDocForItem(item);
+        downloadDocxForItem(item);
       }
     });
 
@@ -588,7 +603,7 @@
         initRegionOptions(state.regions);
         initYearOptions(state.years);
         initObjectTypeOptions(state.objectTypes);
-        summary.textContent = `Акцент${data.updatedAt ? " · " + data.updatedAt : ""}: ${state.items.length} записей`;
+        summary.textContent = `Акцент · карточки${data.updatedAt ? " · " + data.updatedAt : ""}: ${state.items.length} записей`;
         applyFilters();
         updateSelectedMeta();
       } catch (error) {
@@ -628,7 +643,7 @@
     downloadSelectedDocBtn.addEventListener("click", () => {
       const item = state.items.find((x) => normalizeObjectKey(x.objectName) === state.selectedObjectKey);
       if (!item) return;
-      downloadDocForItem(item);
+      downloadDocxForItem(item);
     });
     init();
   </script>
